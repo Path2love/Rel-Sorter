@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { Blueprint } from "@/lib/blueprint-data"
 import { PHASE_LOGIC } from "@/lib/blueprint-data"
 import { LoadingDots } from "./loading-dots"
+import { useClientId } from "@/lib/use-client-id"
 
 interface UsageData {
   remaining: number
@@ -17,6 +18,7 @@ interface VettingLabProps {
 }
 
 export function VettingLab({ blueprint, onUsageUpdate }: VettingLabProps) {
+  const clientId = useClientId()
   const [name, setName] = useState("")
   const [phase, setPhase] = useState("1")
   const [notes, setNotes] = useState("")
@@ -60,9 +62,11 @@ export function VettingLab({ blueprint, onUsageUpdate }: VettingLabProps) {
       .map((t) => t.label)
 
     try {
+      const headers: HeadersInit = { "Content-Type": "application/json" }
+      if (clientId) headers["x-client-id"] = clientId
       const res = await fetch("/api/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           type: "vetting",
           payload: {

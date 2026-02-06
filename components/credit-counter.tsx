@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useClientId } from "@/lib/use-client-id"
 
 interface UsageData {
   remaining: number
@@ -14,20 +15,25 @@ export function CreditCounter({
   lastUsage: UsageData | null
 }) {
   const [usage, setUsage] = useState<UsageData | null>(null)
+  const clientId = useClientId()
 
   const fetchUsage = useCallback(async () => {
     try {
-      const res = await fetch("/api/usage")
+      const headers: HeadersInit = {}
+      if (clientId) headers["x-client-id"] = clientId
+      const res = await fetch("/api/usage", { headers })
       const data = await res.json()
       setUsage({ remaining: data.remaining, used: data.used, limit: data.limit })
     } catch {
       // Silently fail -- counter just won't update
     }
-  }, [])
+  }, [clientId])
 
   // Fetch on mount
   useEffect(() => {
-    fetchUsage()
+    if (clientId) {
+      fetchUsage()
+    }
   }, [fetchUsage])
 
   // Update from API response data passed from parent

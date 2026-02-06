@@ -4,7 +4,7 @@ import { checkUsage, consumeCredit } from "@/lib/usage-limiter"
 
 const openrouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY,
 })
 
 export async function POST(req: Request) {
@@ -13,12 +13,13 @@ export async function POST(req: Request) {
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     req.headers.get("x-real-ip") ||
     "anonymous"
+  const clientId = req.headers.get("x-client-id")?.trim() || ip
 
   // Check credits before processing
-  const usage = checkUsage(ip)
+  const usage = await checkUsage(clientId)
   if (!usage.allowed) {
     return Response.json({
-      text: `You've used all ${usage.limit} interaction credits for today. Credits reset in ${Math.ceil((usage.resetsAt - Date.now()) / 3600000)} hours. Take this time to reflect on what you've learned so far.`,
+      text: `You've used all ${usage.limit} interaction credits. Please contact support if you need more.`,
       usage: { remaining: 0, used: usage.used, limit: usage.limit },
     })
   }
@@ -64,6 +65,12 @@ Instructions:
   }
 
   try {
+    if (!process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY) {
+      return Response.json(
+        { text: "AI coach is not configured. Missing API key." },
+        { status: 200 }
+      )
+    }
     const { text } = await generateText({
       model: openrouter("openrouter/auto"),
       prompt,
@@ -72,7 +79,7 @@ Instructions:
     })
 
     // Consume credit on successful generation
-    const updated = consumeCredit(ip)
+    const updated = await consumeCredit(clientId)
 
     return Response.json({
       text,

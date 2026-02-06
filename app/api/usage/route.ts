@@ -6,6 +6,7 @@ export async function GET(req: Request) {
     req.headers.get("x-real-ip") ||
     "anonymous"
 
-  const usage = checkUsage(ip)
+  const clientId = req.headers.get("x-client-id")?.trim() || ip
+  const usage = await checkUsage(clientId)
   return Response.json(usage)
 }

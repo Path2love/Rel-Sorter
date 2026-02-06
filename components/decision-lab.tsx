@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { X } from "lucide-react"
 import type { Answers, BlueprintCategory } from "@/lib/blueprint-data"
 import { LoadingDots } from "./loading-dots"
+import { useClientId } from "@/lib/use-client-id"
 
 interface UsageData {
   remaining: number
@@ -19,6 +20,7 @@ interface DecisionLabProps {
 }
 
 export function DecisionLab({ activeTrait, onClose, onPlace, onUsageUpdate }: DecisionLabProps) {
+  const clientId = useClientId()
   const [answers, setAnswers] = useState<Answers>({ work: null, issue: null })
   const [context, setContext] = useState("")
   const [followupAnswer, setFollowupAnswer] = useState("")
@@ -62,9 +64,11 @@ export function DecisionLab({ activeTrait, onClose, onPlace, onUsageUpdate }: De
 
     setIsProbing(true)
     try {
+      const headers: HeadersInit = { "Content-Type": "application/json" }
+      if (clientId) headers["x-client-id"] = clientId
       const res = await fetch("/api/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           type: "probe",
           payload: {
@@ -92,9 +96,11 @@ export function DecisionLab({ activeTrait, onClose, onPlace, onUsageUpdate }: De
   async function getFinalRecommendation() {
     setIsFinalizing(true)
     try {
+      const headers: HeadersInit = { "Content-Type": "application/json" }
+      if (clientId) headers["x-client-id"] = clientId
       const res = await fetch("/api/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           type: "final",
           payload: {
