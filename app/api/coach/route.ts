@@ -1,11 +1,5 @@
 import { generateText } from "ai"
-import { createOpenAI } from "@ai-sdk/openai"
 import { checkUsage, consumeCredit } from "@/lib/usage-limiter"
-
-const openrouter = createOpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY,
-})
 
 export async function POST(req: Request) {
   // Identify user by IP
@@ -65,14 +59,8 @@ Instructions:
   }
 
   try {
-    if (!process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY) {
-      return Response.json(
-        { text: "AI coach is not configured. Missing API key." },
-        { status: 200 }
-      )
-    }
     const { text } = await generateText({
-      model: openrouter("openrouter/auto"),
+      model: "openai/gpt-4o-mini",
       prompt,
       maxOutputTokens: 300,
       temperature: 0.7,
