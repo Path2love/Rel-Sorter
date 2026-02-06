@@ -2,23 +2,20 @@
  * Persistent Interaction Credit System
  *
  * Tracks per-user AI usage with a configurable max credit limit.
- * Uses a local file for persistence across restarts.
- *
- * Architecture for future scaling:
- * - Replace the file store with Upstash Redis (INCR)
- * - Add per-client config via a database lookup
- * - Expose /api/usage endpoint for admin dashboards
+ * Uses Upstash Redis for serverless-compatible persistence.
  */
 
-import { promises as fs } from "fs"
-import path from "path"
+import { Redis } from "@upstash/redis"
 
 const MAX_CREDITS = 100
-const STORE_DIR = path.join(process.cwd(), ".data")
-const STORE_PATH = path.join(STORE_DIR, "usage.json")
 
-interface UserUsage {
-  count: number
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
+
+function redisKey(userId: string) {
+  return `usage:${userId}`
 }
 
 export interface UsageResult {
@@ -29,48 +26,23 @@ export interface UsageResult {
   resetsAt: number
 }
 
-async function readStore(): Promise<Record<string, UserUsage>> {
-  try {
-    const raw = await fs.readFile(STORE_PATH, "utf8")
-    const parsed = JSON.parse(raw) as Record<string, UserUsage>
-    if (!parsed || typeof parsed !== "object") return {}
-    return parsed
-  } catch {
-    return {}
-  }
-}
-
-async function writeStore(store: Record<string, UserUsage>) {
-  await fs.mkdir(STORE_DIR, { recursive: true })
-  await fs.writeFile(STORE_PATH, JSON.stringify(store, null, 2), "utf8")
-}
-
-function getUsage(store: Record<string, UserUsage>, userId: string): UserUsage {
-  return store[userId] ?? { count: 0 }
-}
-
 export async function checkUsage(userId: string): Promise<UsageResult> {
-  const store = await readStore()
-  const usage = getUsage(store, userId)
+  const count = (await redis.get<number>(redisKey(userId))) ?? 0
   return {
-    allowed: usage.count < MAX_CREDITS,
-    remaining: Math.max(0, MAX_CREDITS - usage.count),
-    used: usage.count,
+    allowed: count < MAX_CREDITS,
+    remaining: Math.max(0, MAX_CREDITS - count),
+    used: count,
     limit: MAX_CREDITS,
     resetsAt: 0,
   }
 }
 
 export async function consumeCredit(userId: string): Promise<UsageResult> {
-  const store = await readStore()
-  const usage = getUsage(store, userId)
-  usage.count += 1
-  store[userId] = usage
-  await writeStore(store)
+  const count = await redis.incr(redisKey(userId))
   return {
-    allowed: usage.count <= MAX_CREDITS,
-    remaining: Math.max(0, MAX_CREDITS - usage.count),
-    used: usage.count,
+    allowed: count <= MAX_CREDITS,
+    remaining: Math.max(0, MAX_CREDITS - count),
+    used: count,
     limit: MAX_CREDITS,
     resetsAt: 0,
   }
